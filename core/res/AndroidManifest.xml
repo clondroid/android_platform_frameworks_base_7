@@ -3106,10 +3106,11 @@
     <permission android:name="android.permission.ACCESS_VR_MANAGER"
             android:protectionLevel="signature" />
 
+    <!-- privileged is required for pre-installed OpenGMS setupwizard in /system/priv-app -->
     <!-- Allows an application to whitelist tasks during lock task mode
          @hide <p>Not for use by third-party applications.</p> -->
     <permission android:name="android.permission.UPDATE_LOCK_TASK_PACKAGES"
-        android:protectionLevel="signature|setup" />
+        android:protectionLevel="signature|setup|privileged" />
 
     <!-- @SystemApi Allows an application to replace the app name displayed alongside notifications
          in the N-release and later.

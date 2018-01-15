@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2015-2017 The Android Container Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,6 +125,8 @@ import android.view.WindowManagerPolicy;
 import android.view.WindowManagerPolicy.PointerEventListener;
 import android.view.animation.Animation;
 import android.view.inputmethod.InputMethodManagerInternal;
+
+import com.android.server.container.ContainerManagerService;
 
 import com.android.internal.R;
 import com.android.internal.app.IAssistScreenshotReceiver;
@@ -952,6 +955,66 @@ public class WindowManagerService extends IWindowManager.Stub
         }, 0);
     }
 
+    /** Creating an observer to listen to the UEvent of focus container switch. */
+    private int mContainerId = 0;
+    private boolean mInFocusedContainer;
+    private int mCurrentFocusedContainerId = 0;
+
+    private final android.os.UEventObserver mUEventObserver = new android.os.UEventObserver() {
+	@Override
+	public void onUEvent(android.os.UEventObserver.UEvent event) {
+	    Slog.i(TAG, "ACTIVE_CONTAINER_CHANGED: " + event);
+
+	    try    {   
+	        mCurrentFocusedContainerId = Integer.parseInt(event.get("ACTIVE_CONTAINER_CHANGED"));
+	    } catch(NumberFormatException nfe)    {   
+		return; // do nothing here
+	    }
+
+	    if(mContainerId == 0)    { // since surfaceflinger is shared, only host notifies surfaceflinger
+	        try {
+		    final IBinder flinger = ServiceManager.getService("SurfaceFlinger");
+		    if (flinger != null) {
+		        final Parcel data = Parcel.obtain();
+		        data.writeInterfaceToken("android.ui.ISurfaceComposer");
+		        data.writeInt(mCurrentFocusedContainerId);
+		        flinger.transact(25, data, null, 0); //ISurfaceComposer.h: CONTAINER_FOCUS_CHANGED
+		        data.recycle();
+		    }
+	        } catch (RemoteException ex) {
+	            Slog.e(TAG, "Failed to set SurfaceFlinger CONTAINER_FOCUS_CHANGED", ex);
+	        }
+	    }
+
+	    if(mInFocusedContainer)    {
+                if(mCurrentFocusedContainerId != mContainerId)    {
+		    mInFocusedContainer = false;
+		    //SurfaceControlManager.releaseContainerFocus();
+		    
+                    /** this is a must to update state change to surfaceflinger immediately */
+                    //mWindowPlacerLocked.performSurfacePlacement();
+		    //performLayoutAndPlaceSurfacesLockedInner(false); // repaint ????
+		    //performLayoutAndPlaceSurfacesLockedLoop();
+		} else    {
+		    // do nothing here
+		}
+	    } else    {
+		if(mCurrentFocusedContainerId == mContainerId)    {
+		    mInFocusedContainer = true;
+		    //SurfaceControlManager.requestContainerFocus();
+		    
+		    /** this is a must to update state change to surfaceflinger immediately */
+                    //mWindowPlacerLocked.performSurfacePlacement();
+		    //performLayoutAndPlaceSurfacesLockedInner(false); // repaint ????
+		    //performLayoutAndPlaceSurfacesLockedLoop();
+                } else    {
+		    // do nothing here
+		}
+	    }
+	}
+    };
+    /*************************************************************************************/
+
     private WindowManagerService(Context context, InputManagerService inputManager,
             boolean haveInputMethods, boolean showBootMsgs, boolean onlyCore) {
         mContext = context;
@@ -969,6 +1032,17 @@ public class WindowManagerService extends IWindowManager.Stub
         mAllowAnimationsInLowPowerMode = context.getResources().getBoolean(
                 com.android.internal.R.bool.config_allowAnimationsInLowPowerMode);
         mInputManager = inputManager; // Must be before createDisplayContentLocked.
+
+        /** for container layering */
+        mContainerId = ContainerManagerService.getContainerId();
+        mCurrentFocusedContainerId = ContainerManagerService.getCurrentFocusedContainerId();
+	mInFocusedContainer = (mCurrentFocusedContainerId == mContainerId) ? true : false;
+	//SurfaceControlManager.init(mContainerId, mInFocusedContainer);
+        mUEventObserver.startObserving("ACTIVE_CONTAINER_CHANGED=");
+
+        Slog.d(TAG, "constructor: containerId=" + mContainerId +
+	       ", mCurrentFocusedContainerId=" + mCurrentFocusedContainerId);
+
         mDisplayManagerInternal = LocalServices.getService(DisplayManagerInternal.class);
         mDisplaySettings = new DisplaySettings();
         mDisplaySettings.readSettingsLocked();

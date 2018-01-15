@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (C) 2015-2017 The Android Container Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1447,6 +1448,13 @@ static void nativeMonitor(JNIEnv* /* env */, jclass /* clazz */, jlong ptr) {
     im->getInputManager()->getDispatcher()->monitor();
 }
 
+static void nativeSetContainerFocused(JNIEnv* /* env */, jclass /* clazz */,
+			              jlong ptr, jboolean focused) {
+    NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
+ 
+    im->getInputManager()->getReader()->setContainerFocused(focused);
+}
+
 static void nativeSetPointerIconType(JNIEnv* /* env */, jclass /* clazz */, jlong ptr, jint iconId) {
     NativeInputManager* im = reinterpret_cast<NativeInputManager*>(ptr);
     im->setPointerIconType(iconId);
@@ -1535,6 +1543,8 @@ static const JNINativeMethod gInputManagerMethods[] = {
             (void*) nativeDump },
     { "nativeMonitor", "(J)V",
             (void*) nativeMonitor },
+    { "nativeSetContainerFocused", "(JZ)V",
+	    (void*) nativeSetContainerFocused },
     { "nativeSetPointerIconType", "(JI)V",
             (void*) nativeSetPointerIconType },
     { "nativeReloadPointerIcons", "(J)V",

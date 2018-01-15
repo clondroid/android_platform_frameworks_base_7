@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 The Android Open Source Project
+ * Copyright (C) 2015-2017 The Android Container Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,6 +97,8 @@ import android.view.inputmethod.InputMethod;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodSubtype;
 import android.widget.Toast;
+
+import com.android.server.container.ContainerManagerService;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -232,6 +235,43 @@ public class InputManagerService extends IInputManager.Stub
     private static native void nativeReloadPointerIcons(long ptr);
     private static native void nativeSetCustomPointerIcon(long ptr, PointerIcon icon);
 
+
+    /** We create an observer to listen to the UEvent of focus container switch. */
+    private int mContainerId = 0;
+    private boolean mInFocusedContainer;
+    private int mCurrentFocusedContainerId = 0;
+    private static native void nativeSetContainerFocused(long ptr, boolean focused);
+    
+    private final android.os.UEventObserver mUEventObserver = new android.os.UEventObserver() {
+        @Override
+        public void onUEvent(android.os.UEventObserver.UEvent event) {
+            Slog.i(TAG, "ACTIVE_CONTAINER_CHANGED: " + event);
+
+            try    {     
+                mCurrentFocusedContainerId = Integer.parseInt(event.get("ACTIVE_CONTAINER_CHANGED"));
+            } catch(NumberFormatException nfe)    {     
+                return; // do nothing here
+            }
+
+            if(mInFocusedContainer)    {
+                if(mCurrentFocusedContainerId != mContainerId)    {
+                    mInFocusedContainer = false;
+                    nativeSetContainerFocused(mPtr, false);
+                } else    {
+                    // do nothing here
+                }
+            } else    {
+                if(mCurrentFocusedContainerId == mContainerId)    {
+                    mInFocusedContainer = true; 
+                    nativeSetContainerFocused(mPtr, true);
+                } else    {
+                    // do nothing here
+                }
+            }
+        }
+    };
+    /**************************************************************************/
+
     // Input event injection constants defined in InputDispatcher.h.
     private static final int INPUT_EVENT_INJECTION_SUCCEEDED = 0;
     private static final int INPUT_EVENT_INJECTION_PERMISSION_DENIED = 1;
@@ -316,6 +356,16 @@ public class InputManagerService extends IInputManager.Stub
             new File(doubleTouchGestureEnablePath);
 
         LocalServices.addService(InputManagerInternal.class, new LocalService());
+
+        /** for container layering */
+        mContainerId = ContainerManagerService.getContainerId();
+        mCurrentFocusedContainerId = ContainerManagerService.getCurrentFocusedContainerId();
+        mInFocusedContainer = (mCurrentFocusedContainerId == mContainerId) ? true : false;
+        nativeSetContainerFocused(mPtr, mInFocusedContainer);
+        mUEventObserver.startObserving("ACTIVE_CONTAINER_CHANGED=");
+
+        Slog.d(TAG, "constructor: containerId=" + mContainerId +
+               ", mCurrentFocusedContainerId=" + mCurrentFocusedContainerId);
     }
 
     public void setWindowManagerCallbacks(WindowManagerCallbacks callbacks) {

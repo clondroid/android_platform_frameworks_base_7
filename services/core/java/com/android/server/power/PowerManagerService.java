@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2015-2017 The Android Container Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1260,6 +1261,15 @@ public final class PowerManagerService extends SystemService
     // dozing before really going to sleep.
     @SuppressWarnings("deprecation")
     private boolean goToSleepNoUpdateLocked(long eventTime, int reason, int flags, int uid) {
+
+        // TODO: temporarily prevent unfocused host/container to go to sleep
+        if(!com.android.server.container.ContainerManagerService.isInFocusedContainer())    {
+            Slog.i(TAG, "Preventing un-focused container: " +
+                   com.android.server.container.ContainerManagerService.getContainerId() +
+                   " from going to sleep");
+            return false;
+        }
+
         if (DEBUG_SPEW) {
             Slog.d(TAG, "goToSleepNoUpdateLocked: eventTime=" + eventTime
                     + ", reason=" + reason + ", flags=" + flags + ", uid=" + uid);
