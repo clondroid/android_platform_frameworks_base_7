@@ -51,8 +51,8 @@ public class ContainerManagerService    {
     }    
 
     public static int getContainerId()    {    
-        return android.os.SystemProperties.getInt("ro.boot.container.id", 0);
-    }
+        return android.os.SystemProperties.getInt("ro.container.id", 0);
+    } //modify by moto
 
     public static int getCurrentFocusedContainerId()    {
         String path = "/proc/container/active";
